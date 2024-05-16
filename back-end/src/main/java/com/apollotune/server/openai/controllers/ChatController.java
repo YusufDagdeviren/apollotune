@@ -6,7 +6,9 @@ import java.util.List;
 
 import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -16,6 +18,8 @@ import com.apollotune.server.openai.payloads.request.KeySearchRequest;
 import com.apollotune.server.openai.payloads.response.KeySearchResponse;
 import com.apollotune.server.openai.payloads.response.KeySearchResponseWithSpotify;
 import com.apollotune.server.openai.prompt.PromptByKeySearch;
+import com.apollotune.server.openai.prompt.PromptBySentenceSearch;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neovisionaries.i18n.CountryCode;
@@ -32,6 +36,7 @@ import se.michaelthelin.spotify.model_objects.specification.Track;
 import se.michaelthelin.spotify.requests.authorization.client_credentials.ClientCredentialsRequest;
 import se.michaelthelin.spotify.requests.data.search.simplified.SearchTracksRequest;
 import se.michaelthelin.spotify.requests.data.tracks.GetTrackRequest;
+import com.apollotune.server.openai.payloads.request.SentenceSearchRequest;
 
 
 @RestController
@@ -89,7 +94,7 @@ public class ChatController {
             return responseWithSpotifies;
         }
     }
-    
+    @CrossOrigin(origins = "http://localhost:5173")
     @GetMapping("/keysearchrequest")
     public List<KeySearchResponseWithSpotify> keySearch(@RequestBody KeySearchRequest keySearchRequest) throws IOException {
         PromptByKeySearch promptByApp = new PromptByKeySearch();
@@ -111,6 +116,25 @@ public class ChatController {
         });
         List<KeySearchResponseWithSpotify> responseWithSpotifies = new ArrayList<>();
 
+        return getKeySearchResponseWithSpotifies(keySearchResponses, responseWithSpotifies);
+    }
+    @CrossOrigin(origins = "http://localhost:5173")
+    @PostMapping(path = "/sentencesearchrequest")
+    public List<KeySearchResponseWithSpotify> sentenceSearch(@RequestBody SentenceSearchRequest sentenceSearchRequest) throws JsonProcessingException {
+        PromptBySentenceSearch promptByApp = new PromptBySentenceSearch();
+        promptByApp.setSentence(sentenceSearchRequest.getSentence());
+        ObjectMapper objectMapper = new ObjectMapper();
+        Prompt prompt = StructuredPromptProcessor.toPrompt(promptByApp);
+        ChatLanguageModel model = OpenAiChatModel
+                .builder()
+                .apiKey(OPEN_API_KEY)
+                .modelName(MODEL)
+                .temperature(0.3)
+                .build();
+        String responseGpt = model.generate(prompt.text());
+        List<KeySearchResponse> keySearchResponses = objectMapper.readValue(responseGpt, new TypeReference<List<KeySearchResponse>>() {
+        });
+        List<KeySearchResponseWithSpotify> responseWithSpotifies = new ArrayList<>();
         return getKeySearchResponseWithSpotifies(keySearchResponses, responseWithSpotifies);
     }
 }
